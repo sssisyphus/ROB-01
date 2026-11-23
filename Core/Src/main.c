@@ -58,17 +58,24 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint16_t adc_values[8];
-const uint32_t adc_channels[8] = {
-    ADC_CHANNEL_0, // PA0
-    ADC_CHANNEL_1, // PA1
-    ADC_CHANNEL_2, // PA2
-    ADC_CHANNEL_3, // PA3
-    ADC_CHANNEL_4, // PA4
-    ADC_CHANNEL_5, // PA5
-    ADC_CHANNEL_6, // PA6
-    ADC_CHANNEL_7  // PA7
+/*
+ * STRUCUTRE:
+ * define MACROS
+ * setup peripherals
+ * read sensors values
+ * PD control
+ * handle error or finish
+ */
+
+#define NUM_SENSORS 8
+
+uint16_t adc_values[NUM_SENSORS];
+const uint32_t adc_channels[NUM_SENSORS] = { ADC_CHANNEL_0, ADC_CHANNEL_1, ADC_CHANNEL_2, ADC_CHANNEL_3,
+    ADC_CHANNEL_4, ADC_CHANNEL_5, ADC_CHANNEL_6, ADC_CHANNEL_7
 };
+uint16_t arr_max;
+
+// FUNCS
 uint16_t ADC_Read_Channel(uint32_t channel);
 
 /* USER CODE END 0 */
@@ -115,52 +122,23 @@ int main(void)
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-  uint16_t arr_max = __HAL_TIM_GET_AUTORELOAD(&htim3); // e.g. 999
+  arr_max = __HAL_TIM_GET_AUTORELOAD(&htim3); // e.g. 999
 
-  uint16_t duty = 0;
-  int8_t step = 10;
+  // setup
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
+  HAL_Delay(1250);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
+
+  while (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) {};
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+
   while (1)
   {
-	  // --- PIN READING --- //
-	  if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == GPIO_PIN_RESET ||
-	        HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_RESET) {
-	      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-	  }else{
-	      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	  }
-	  // ------------------- //
 
-	  // --- ADC READING --- //
-	  for (uint8_t i = 0; i < 8; i++) {
-		  adc_values[i] = ADC_Read_Channel(adc_channels[i]);
-	  }
-	  // ------------------- //
 
-	 // --- PWM SETTINGS --- //
-
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, duty); // PWMA
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, duty); // PWMB
-
-	  if ((int32_t)duty + step >= (int32_t)arr_max) {
-	          duty = arr_max;
-	          step = -step;
-	  } else if ((int32_t)duty + step <= 0) {
-	          duty = 0;
-	          step = -step;
-	  } else {
-	          duty += step;
-	  }
-	  // Set AIN1/AIN2 and BIN1/BIN2 direction pins
-	  // A RIGHT
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
-	  // B LEFT
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
-
-	  // ------------------ //
-
-	  HAL_Delay(20);
 
     /* USER CODE END WHILE */
 
@@ -225,8 +203,7 @@ uint16_t ADC_Read_Channel(uint32_t channel)
     // Longer sample time (55.5 or 239.5 cycles) improves stability across high-impedance sources
     sConfig.SamplingTime = ADC_SAMPLETIME_55CYCLES_5;
 
-    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-    {
+    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
         Error_Handler();
     }
 
