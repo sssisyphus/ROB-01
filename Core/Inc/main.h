@@ -57,6 +57,42 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define LED_1_Pin GPIO_PIN_13
+#define LED_1_GPIO_Port GPIOC
+#define BUTTON_1_Pin GPIO_PIN_15
+#define BUTTON_1_GPIO_Port GPIOC
+#define ADC_0_Pin GPIO_PIN_0
+#define ADC_0_GPIO_Port GPIOA
+#define ADC_1_Pin GPIO_PIN_1
+#define ADC_1_GPIO_Port GPIOA
+#define ADC_2_Pin GPIO_PIN_2
+#define ADC_2_GPIO_Port GPIOA
+#define ADC_3_Pin GPIO_PIN_3
+#define ADC_3_GPIO_Port GPIOA
+#define ADC_4_Pin GPIO_PIN_4
+#define ADC_4_GPIO_Port GPIOA
+#define ADC_5_Pin GPIO_PIN_5
+#define ADC_5_GPIO_Port GPIOA
+#define ADC_6_Pin GPIO_PIN_6
+#define ADC_6_GPIO_Port GPIOA
+#define ADC_7_Pin GPIO_PIN_7
+#define ADC_7_GPIO_Port GPIOA
+#define PWMA_Pin GPIO_PIN_0
+#define PWMA_GPIO_Port GPIOB
+#define PWMB_Pin GPIO_PIN_1
+#define PWMB_GPIO_Port GPIOB
+#define AIN1_Pin GPIO_PIN_12
+#define AIN1_GPIO_Port GPIOB
+#define AIN2_Pin GPIO_PIN_13
+#define AIN2_GPIO_Port GPIOB
+#define BIN1_Pin GPIO_PIN_14
+#define BIN1_GPIO_Port GPIOB
+#define BIN2_Pin GPIO_PIN_15
+#define BIN2_GPIO_Port GPIOB
+#define LED_2_Pin GPIO_PIN_3
+#define LED_2_GPIO_Port GPIOB
+#define BUTTON_2_Pin GPIO_PIN_9
+#define BUTTON_2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

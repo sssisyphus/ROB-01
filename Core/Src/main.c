@@ -19,6 +19,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -101,6 +103,8 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_ADC1_Init();
+  MX_USART1_UART_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -108,24 +112,55 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_ADCEx_Calibration_Start(&hadc1);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+  uint16_t arr_max = __HAL_TIM_GET_AUTORELOAD(&htim3); // e.g. 999
+
+  uint16_t duty = 0;
+  int8_t step = 10;
   while (1)
   {
+	  // --- PIN READING --- //
 	  if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == GPIO_PIN_RESET ||
 	        HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_RESET) {
 	      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-	    }else{
+	  }else{
 	      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	    }
+	  }
+	  // ------------------- //
 
-	  for (uint8_t i = 0; i < 8; i++)
-	      {
-	          adc_values[i] = ADC_Read_Channel(adc_channels[i]);
-	      }
+	  // --- ADC READING --- //
+	  for (uint8_t i = 0; i < 8; i++) {
+		  adc_values[i] = ADC_Read_Channel(adc_channels[i]);
+	  }
+	  // ------------------- //
 
-	      // Optional: Convert raw values to voltage (assuming 3.3V VDDA)
-	      // float voltage_pa0 = (adc_values[0] * 3.3f) / 4095.0f;
+	 // --- PWM SETTINGS --- //
 
-	      HAL_Delay(100);
+	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, duty); // PWMA
+	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, duty); // PWMB
+
+	  if ((int32_t)duty + step >= (int32_t)arr_max) {
+	          duty = arr_max;
+	          step = -step;
+	  } else if ((int32_t)duty + step <= 0) {
+	          duty = 0;
+	          step = -step;
+	  } else {
+	          duty += step;
+	  }
+	  // Set AIN1/AIN2 and BIN1/BIN2 direction pins
+	  // A RIGHT
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+	  // B LEFT
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+
+	  // ------------------ //
+
+	  HAL_Delay(20);
 
     /* USER CODE END WHILE */
 
