@@ -22,6 +22,9 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -66,17 +69,34 @@ void SystemClock_Config(void);
  * PD control
  * handle error or finish
  */
+extern UART_HandleTypeDef huart1;
 
 #define NUM_SENSORS 8
+#define NUM_SAMPLES 6
+#define LINE_THRESHOLD 500
+#define MIDDLE_POS 4500
+#define Kp 0.01
+#define Kd 0.2
+#define SPEED 0
 
-uint16_t adc_values[NUM_SENSORS];
-const uint32_t adc_channels[NUM_SENSORS] = { ADC_CHANNEL_0, ADC_CHANNEL_1, ADC_CHANNEL_2, ADC_CHANNEL_3,
-    ADC_CHANNEL_4, ADC_CHANNEL_5, ADC_CHANNEL_6, ADC_CHANNEL_7
-};
+uint16_t sensor_values[NUM_SENSORS];
+const uint32_t adc_channels[NUM_SENSORS] = { ADC_CHANNEL_0, ADC_CHANNEL_1, ADC_CHANNEL_2, ADC_CHANNEL_3, ADC_CHANNEL_4, ADC_CHANNEL_5, ADC_CHANNEL_6, ADC_CHANNEL_7 };
 uint16_t arr_max;
+bool is_running = false;
+uint32_t start_time;
+uint32_t current_time;
+uint32_t out_start_time;
+bool is_on_line = false;
+int16_t error;
+int16_t previous_error;
 
 // FUNCS
+
+int __io_putchar(int ch);
 uint16_t ADC_Read_Channel(uint32_t channel);
+void get_raw_adc_values(void);
+void read_adc_sensors(void);
+uint16_t read_line(void);
 
 /* USER CODE END 0 */
 
@@ -129,16 +149,63 @@ int main(void)
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
-  HAL_Delay(1250);
+  HAL_Delay(1500);
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
 
-  while (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) {};
+  while(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) {};
+
+  HAL_Delay(250);
+
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+
+  while(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) {
+	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+	  HAL_Delay(50);
+	  //calibrate_sensors();
+  };
+
+  HAL_Delay(250);
+
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+
+  while(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) {};
+
+  is_running = true;
+  start_time = HAL_GetTick();
+  current_time = start_time;
+  out_start_time = start_time;
 
   while (1)
   {
 
+	  while(is_running){
 
+		  current_time = HAL_GetTick();
+		  uint16_t pos = read_line();
+
+		  error = MIDDLE_POS - pos;
+		  int16_t delta_error = error - previous_error;
+		  previous_error = error;
+
+		  int P = error*Kp;
+		  int D = delta_error*Kd;
+
+		  int control_signal = P + D;
+
+		  int pwma_value = SPEED + control_signal;
+		  int pwmb_value = SPEED - control_signal;
+
+		  /*
+		  if (pwma_value > 255) pwma_value = 255;
+		  if (pwma_value < -255) pwma_value = -255;
+
+		  if (pwmb_value > 255) pwmb_value = 255;
+		  if (pwmb_value < -255) pwmb_value = -255;
+		  */
+
+	  }
 
     /* USER CODE END WHILE */
 
@@ -194,13 +261,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+int __io_putchar(int ch) {
+	HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1U, 100U);
+	return ch;
+}
 uint16_t ADC_Read_Channel(uint32_t channel)
 {
     ADC_ChannelConfTypeDef sConfig = {0};
 
     sConfig.Channel = channel;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    // Longer sample time (55.5 or 239.5 cycles) improves stability across high-impedance sources
     sConfig.SamplingTime = ADC_SAMPLETIME_55CYCLES_5;
 
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
@@ -208,12 +278,47 @@ uint16_t ADC_Read_Channel(uint32_t channel)
     }
 
     HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, 10); // Timeout of 10ms
+    HAL_ADC_PollForConversion(&hadc1, 10);
     uint16_t adc_val = HAL_ADC_GetValue(&hadc1);
     HAL_ADC_Stop(&hadc1);
 
     return adc_val;
 }
+void get_raw_adc_values(void){
+	for(uint8_t i = 0; i < NUM_SENSORS; i++) {
+		sensor_values[i] = ADC_Read_Channel(adc_channels[i]);
+	}
+}
+void read_adc_sensors(void){
+	uint32_t sum_sensor_values[NUM_SENSORS] = {0};
+	for (uint8_t s = 0; s < NUM_SAMPLES; s++) {
+		get_raw_adc_values();
+		for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+			sum_sensor_values[i] += sensor_values[i];
+		}
+	}
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		sensor_values[i] = (uint16_t)((sum_sensor_values[i] + (NUM_SAMPLES / 2U)) / NUM_SAMPLES);
+	}
+}
+uint16_t read_line(void){
+	uint16_t pos = 0;
+	uint8_t active = 0;
+	is_on_line = false;
+
+	read_adc_sensors();
+
+	for(uint8_t i = 0; i < NUM_SENSORS; i++){
+		if(sensor_values[i] < LINE_THRESHOLD){
+			is_on_line = true;
+			active++;
+			pos += (i + 1) * 1000;
+		}
+	}
+	if(active == 0){return 4500;}
+	return pos/active;
+}
+
 /* USER CODE END 4 */
 
 /**
