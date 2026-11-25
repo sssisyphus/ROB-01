@@ -81,7 +81,7 @@ extern UART_HandleTypeDef huart1;
 #define MAX_OUT_TIME_MS 10
 #define OUT_OUTTER_SPEED 255
 #define OUT_INNER_SPEED -255
-#define FINISH_LINE_COUNT (NUM_SENSORS - 2)
+#define FINISH_LINE_COUNT 6
 
 uint16_t sensor_values[NUM_SENSORS];
 const uint32_t adc_channels[NUM_SENSORS] = { ADC_CHANNEL_0, ADC_CHANNEL_1, ADC_CHANNEL_2, ADC_CHANNEL_3, ADC_CHANNEL_4, ADC_CHANNEL_5, ADC_CHANNEL_6, ADC_CHANNEL_7 };
@@ -209,7 +209,6 @@ int main(void)
 			  if(at_finish_line() && race_elapsed_time > 1000){
 			  	  is_running = false;
 			  }
-			  printf("time: %d\n\r",race_elapsed_time);
 
 			  int P = error*Kp;
 			  int D = delta_error*Kd;
@@ -218,6 +217,7 @@ int main(void)
 
 			  int pwma_value = SPEED + control_signal;
 			  int pwmb_value = SPEED - control_signal;
+			  printf("signal: %d | pwma: %d | pwmb: %d \r\n", control_signal, pwma_value, pwmb_value);
 
 			  /*
 			  if (pwma_value > 255) pwma_value = 255;
@@ -372,6 +372,12 @@ uint16_t read_line(void){
 	return pos/active;
 }
 void set_motors(int pwma_value, int pwmb_value){
+	  if(pwma_value < 0){
+		  pwma_value = 0;
+	  }
+	  if(pwmb_value < 0 ){
+		  pwmb_value = 0;
+	  }
 	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, pwma_value); // PWMA
 	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, pwmb_value); // PWMB
 	  // A RIGHT
@@ -383,12 +389,12 @@ void set_motors(int pwma_value, int pwmb_value){
 }
 bool at_finish_line(void){
 	uint8_t line_count = 0;
-	for(uint8_t i = 0; i < FINISH_LINE_COUNT; i++){
+	for(uint8_t i = 0; i < NUM_SENSORS; i++){
 		if(sensor_values[i + 1] < LINE_THRESHOLD){
 			line_count++;
 		}
 	}
-	return line_count == FINISH_LINE_COUNT;
+	return line_count >= FINISH_LINE_COUNT;
 }
 
 /* USER CODE END 4 */
